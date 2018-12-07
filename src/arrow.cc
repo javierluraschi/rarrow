@@ -6,9 +6,6 @@
 using namespace arrow;
 using namespace Rcpp;
 
-// Buffer for R data, is immutable so we can use the pointer directly.
-// Does R's gc compact memory and move objects after allocation? I don't think
-// so?
 class RBuffer : public Buffer {
  public:
   RBuffer(SEXP data) : Buffer(nullptr, 0) {
@@ -20,19 +17,9 @@ class RBuffer : public Buffer {
   ~RBuffer() {}
 };
 
-std::shared_ptr<Buffer> init_null_bitmap(IntegerVector array) {
-  int64_t null_bytes = BitUtil::BytesForBits(array.size());
-
-  auto null_bitmap = std::make_shared<PoolBuffer>(default_memory_pool());
-  null_bitmap->Resize(null_bytes);
-
-  auto null_bitmap_data = null_bitmap->mutable_data();
-  memset(null_bitmap_data, 0, static_cast<size_t>(null_bytes));
-  return null_bitmap;
-}
-
 std::shared_ptr<Buffer> values_to_bitmap(IntegerVector array) {
-  auto bitmap = init_null_bitmap(array);
+  std::vector<int32_t> values = as<std::vector<int32_t> >(array);
+  auto bitmap = MutableBuffer::Wrap(values.data(), values.size());
   auto bitmap_data = bitmap->mutable_data();
 
   for (int i = 0; i < array.size(); ++i) {
@@ -43,6 +30,7 @@ std::shared_ptr<Buffer> values_to_bitmap(IntegerVector array) {
 
   return bitmap;
 }
+
 // [[Rcpp::export]]
 array_ptr array(IntegerVector input) {
   auto buffer = std::make_shared<RBuffer>(input);
